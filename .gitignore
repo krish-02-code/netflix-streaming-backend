@@ -1,0 +1,28 @@
+# Application properties with secrets
+**/application.properties
+**/application.yml
+**/application.yaml
+
+# Environment files
+.env
+*.env
+
+# Build folders
+**/target/
+**/.mvn/
+
+# IDE files
+.idea/
+*.iml
+
+# Temp encoding files
+C:/tmp/encoding/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+*.mp4
+*.avi
+*.mkv
+*.mov

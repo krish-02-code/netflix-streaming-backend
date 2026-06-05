@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: encoding-service
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: encoding-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        max.poll.interval.ms: 3600000
+        spring:
+          json:
+            trusted:
+              packages: "*"
+            use:
+              type:
+                headers: false
+            value:
+              default:
+                type: com.netflix.encodingservice.event.VideoUploadedEvent
+
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+server:
+  port: 8083
+
+# ── AWS Configuration
+# Create an IAM user with S3 access and paste credentials here
+aws:
+  access-key: YOUR_AWS_ACCESS_KEY_HERE
+  secret-key: YOUR_AWS_SECRET_KEY_HERE
+  region: eu-north-1
+  s3:
+    bucket-name: YOUR_BUCKET_NAME_HERE
+
+# FFmpeg Configuration
+# Download FFmpeg from https://ffmpeg.org/download.html
+# Windows example: C:/ffmpeg/bin/ffmpeg.exe
+
+ffmpeg:
+  path: C:/ffmpeg/bin/ffmpeg.exe
+
+#Temp Directory
+# Folder where videos are temporarily stored during encoding
+encoding:
+  base-path: C:/tmp/encoding
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

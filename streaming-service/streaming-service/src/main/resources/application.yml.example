@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: streaming-service
+
+  data:
+    redis:
+      host : localhost
+      port : 6379
+
+  kafka :
+    bootstrap-servers : localhost:9092
+    consumer:
+      group-id: streaming-service-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: "*"
+            use:
+              type:
+                headers: false
+            value:
+              default:
+                type: com.netflix.streamingservice.event.VideoEncodedEvent
+
+
+server:
+  port : 8084
+
+# Self-referencing base URL used to rewrite .m3u8 playlist lines
+# so hls.js always fetches sub-playlists through this backend proxy
+# (change to your deployed URL in production)
+streaming:
+  service:
+    base-url: http://localhost:8084
+
+#AWS Configuration
+
+aws:
+  access-key: YOUR_AWS_ACCESS_KEY_HERE
+  secret-key: YOUR_AWS_SECRET_KEY_HERE
+  region: eu-north-1
+  s3:
+    bucket-name: YOUR_BUCKET_NAME_HERE
+    #presigned url expiry in minutes
+    presigned-url-expiry : 60
+
+  management :
+    endpoints :
+      web :
+        exposure :
+          include : health,info
