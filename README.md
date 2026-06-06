@@ -1,129 +1,90 @@
-# 🎬 Netflix-Style Video Streaming Platform
+# Netflix-Style Video Streaming Backend
 
-A production-grade microservices backend for video streaming, inspired by Netflix architecture. Built with Java Spring Boot, Apache Kafka, AWS S3, FFmpeg, and Redis.
+When you hit play on Netflix, video starts in under 3 seconds. Millions of people are watching simultaneously, all streaming unique content, with zero buffering. I always wondered how that actually works under the hood.
+
+So I tried to build it.
+
+The problem that got me thinking: suppose you upload a raw 2-hour movie — 50GB file. 10 million people want to watch it, on different devices, different network speeds, some on 4G, some on WiFi, some on slow connections. You can't just serve that 50GB file directly — it would kill the server instantly.
+
+Netflix solves three problems:
+
+**Storage** — You can't store a 50GB raw file and serve it directly to millions. It needs to be compressed, processed, and distributed efficiently.
+
+**Streaming** — You can't make someone download the whole file before watching. Video needs to load in chunks, just ahead of where the viewer is.
+
+**Quality** — A person on 4G shouldn't get the same file as someone on gigabit internet. The video needs to adapt to your network speed in real time.
+
+This project is my attempt at solving all three from scratch.
 
 ---
 
-## Architecture Overview
+## How it works
 
 ```
-User Uploads Video
-        ↓
-  [video-service]  →  Upload to AWS S3  →  Publish Kafka Event
-        ↓
-[encoding-service] →  Download from S3  →  FFmpeg HLS Encoding  →  Upload back to S3
-        ↓
-[streaming-service] →  Redis Cache  →  Presigned URLs  →  Proxy Playlists
-        ↓
-  Frontend Player (hls.js) streams video
+Upload raw video
+      ↓
+Store to AWS S3
+      ↓
+Kafka event triggers encoding
+      ↓
+FFmpeg encodes to 4 qualities (1080p, 720p, 480p, 360p)
+      ↓
+Split into 10-second HLS chunks, uploaded back to S3
+      ↓
+Player picks the right quality based on network speed
+      ↓
+Presigned URLs serve chunks securely from private S3
 ```
 
 ---
 
 ## Services
 
-| Service | Port | Responsibility |
+| Service | Port | What it does |
 |---|---|---|
-| `video-service` | 8082 | Accepts video uploads, stores raw video to AWS S3, publishes Kafka event |
-| `encoding-service` | 8083 | Consumes Kafka event, encodes video to HLS via FFmpeg (4 qualities), uploads back to S3 |
-| `streaming-service` | 8084 | Serves presigned HLS master playlist URLs, proxies quality playlists, Redis caching |
-| `content-service` | 8081 | Manages movie metadata (title, description, genres) |
+| video-service | 8082 | Accepts upload, stores raw video to S3, fires Kafka event |
+| encoding-service | 8083 | Picks up Kafka event, runs FFmpeg, uploads HLS output to S3 |
+| streaming-service | 8084 | Issues presigned URLs, proxies playlists, caches in Redis |
+| content-service | 8081 | Stores movie metadata |
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Java 17 |
-| Framework | Spring Boot 3.x |
-| Messaging | Apache Kafka |
-| Storage | AWS S3 |
-| Video Processing | FFmpeg + HLS (adaptive bitrate) |
-| Caching | Redis |
-| Database | MySQL |
-| Containerization | Docker + Docker Compose |
+- Java 17 + Spring Boot
+- Apache Kafka — decouples upload from encoding
+- AWS S3 — stores both raw and encoded video
+- FFmpeg — does the actual video encoding
+- HLS — splits video into chunks, handles adaptive quality
+- Redis — caches presigned URLs so we don't hammer AWS
+- MySQL — movie metadata
+- Docker + Docker Compose
 
 ---
 
-## Key Features
-
-- **Adaptive Bitrate Streaming** — Videos encoded to 4 qualities: 1080p, 720p, 480p, 360p
-- **HLS Protocol** — Video split into 10-second `.ts` segments with `.m3u8` playlists
-- **Presigned URLs** — Time-limited secure access to private S3 content (no public bucket)
-- **Playlist Proxy** — Backend rewrites `.m3u8` URLs so all requests go through the service
-- **Redis Caching** — Presigned URLs cached for 55 minutes to avoid repeated AWS calls
-- **Event-Driven** — Kafka decouples upload from encoding (async processing)
-
----
-
-## Project Structure
-
-```
-Netflix/
-├── video-service/           # Upload service
-├── encoding-service/        # FFmpeg encoding service  
-├── streaming-service/       # HLS streaming + presigned URLs
-├── content-service/         # Movie metadata service
-├── docker-compose.yml       # Kafka + Redis + Zookeeper
-├── player.html              # Test HLS player (hls.js)
-└── README.md
-```
-
----
-
-## Setup & Running
+## Setup
 
 ### Prerequisites
-
 - Java 17+
-- Maven
 - Docker Desktop
-- FFmpeg installed ([download here](https://ffmpeg.org/download.html))
-- AWS account with S3 bucket
+- FFmpeg ([download](https://ffmpeg.org/download.html))
+- AWS account with an S3 bucket
 
-### Step 1 — Clone the Repo
+### Steps
 
 ```bash
+# 1. Clone
 git clone https://github.com/krish-02-code/netflix-streaming-backend.git
 cd netflix-streaming-backend
-```
 
-### Step 2 — Configure Each Service
-
-Copy the example config and fill in your values for **each service**:
-
-```bash
+# 2. Configure each service
 cp src/main/resources/application.yml.example src/main/resources/application.yml
-```
+# Fill in AWS keys, FFmpeg path, temp directory
 
-Fill in:
-```yaml
-aws:
-  access-key: YOUR_AWS_ACCESS_KEY
-  secret-key: YOUR_AWS_SECRET_KEY
-  region: your-region
-  s3:
-    bucket-name: your-bucket-name
-
-ffmpeg:
-  path: C:/ffmpeg/bin/ffmpeg.exe   # or /usr/bin/ffmpeg on Linux
-
-encoding:
-  base-path: C:/tmp/encoding        # temp folder for encoding
-```
-
-### Step 3 — Start Kafka and Redis
-
-```bash
+# 3. Start Kafka and Redis
 docker-compose up -d
-```
 
-### Step 4 — Run All Services
-
-Start each service from IntelliJ or via Maven:
-
-```bash
+# 4. Run services
 cd video-service && mvn spring-boot:run
 cd encoding-service && mvn spring-boot:run
 cd streaming-service && mvn spring-boot:run
@@ -132,75 +93,52 @@ cd content-service && mvn spring-boot:run
 
 ---
 
-## API Endpoints
+## API
 
-### Video Service
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/v1/videos/upload` | Upload a raw video file |
-
-### Streaming Service
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/v1/stream/{movieId}` | Get presigned HLS master playlist URL |
-| `GET` | `/api/v1/stream/{movieId}/playlist?path=...` | Get signed quality playlist (proxied) |
-
-### Content Service
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/v1/content/{movieId}` | Get movie metadata |
-| `POST` | `/api/v1/content` | Create movie entry |
+| POST | /api/v1/videos/upload | Upload raw video |
+| GET | /api/v1/stream/{movieId} | Get HLS streaming URL |
+| GET | /api/v1/stream/{movieId}/playlist?path=... | Proxied quality playlist |
+| GET | /api/v1/content/{movieId} | Get movie metadata |
 
 ---
 
-## How Streaming Works
-
-1. Frontend calls `GET /api/v1/stream/{movieId}`
-2. Service returns a **presigned URL** for `master.m3u8` (valid 60 min, cached in Redis)
-3. `hls.js` fetches `master.m3u8` — contains links to quality playlists
-4. Quality playlist links point back to **our proxy** (`/playlist?path=...`)
-5. Proxy reads the quality `.m3u8` from S3 and rewrites `.ts` segment URLs as presigned S3 links
-6. `hls.js` fetches `.ts` segments **directly from S3** using presigned URLs
-
-This ensures the S3 bucket stays **fully private** — no public access ever.
-
----
-
-## HLS Output Structure (S3)
+## S3 Structure After Encoding
 
 ```
 encoded/{movieId}/
-├── master.m3u8
+├── master.m3u8          ← player downloads this first
 ├── 1080p/
 │   ├── playlist.m3u8
 │   ├── segment_000.ts
 │   └── segment_001.ts ...
-├── 720p/
-│   └── ...
-├── 480p/
-│   └── ...
-└── 360p/
-    └── ...
+├── 720p/ ...
+├── 480p/ ...
+└── 360p/ ...
 ```
 
 ---
 
 ## Environment Variables
 
-| Variable | Used In | Description |
-|---|---|---|
-| `AWS_ACCESS_KEY` | all services | AWS IAM access key |
-| `AWS_SECRET_KEY` | all services | AWS IAM secret key |
-| `AWS_REGION` | all services | S3 bucket region |
-| `AWS_BUCKET_NAME` | all services | S3 bucket name |
-| `FFMPEG_PATH` | encoding-service | Path to FFmpeg binary |
-| `TEMP_DIR` | encoding-service | Temp folder for encoding |
-| `DB_USERNAME` | content-service | MySQL username |
-| `DB_PASSWORD` | content-service | MySQL password |
+| Variable | Description |
+|---|---|
+| AWS_ACCESS_KEY | IAM access key |
+| AWS_SECRET_KEY | IAM secret key |
+| AWS_REGION | S3 bucket region |
+| AWS_BUCKET_NAME | S3 bucket name |
+| FFMPEG_PATH | Path to FFmpeg binary |
+| TEMP_DIR | Temp folder for encoding work |
+| DB_USERNAME | MySQL username |
+| DB_PASSWORD | MySQL password |
 
 ---
 
-## Author
+## Current Limitations
 
-**Krish** — B.Tech Computer Engineering, PCCOE Pune  
-[GitHub](https://github.com/krish-02-code) • [LeetCode](https://leetcode.com/u/Krish1231)
+- No CDN yet — chunks are served directly from S3
+- Single encoding worker — no parallel encoding across services
+- No authentication on streaming endpoints yet
+
+---
