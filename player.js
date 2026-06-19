@@ -1,11 +1,6 @@
-// Content Service (port 8081)
-// API: GET /api/v1/movies/{movieId}
-// Returns: MovieResponse  →  field: hlsUrl  (plain S3 URL, needs public bucket)
-const CONTENT_SERVICE_BASE_URL = 'http://localhost:8081';
-
 // Streaming Service (port 8084)
 // API: GET /api/v1/stream/{movieId}
-// Returns: StreamResponse  →  field: streamingUrl  (AWS presigned URL, works with private bucket)
+// Returns: StreamResponse  →  field: masterPlaylistKey (proxy URL path key)
 const STREAMING_SERVICE_BASE_URL = 'http://localhost:8084';
 
 
@@ -94,46 +89,6 @@ function loadAndPlay(m3u8Url) {
 }
 
 
-async function playByMovieId() {
-  const movieId = document.getElementById('movieIdInput').value.trim();
-  if (!movieId) {
-    setStatus('error', 'Please enter a Movie ID');
-    return;
-  }
-
-  setStatus('loading', 'Fetching stream info from Content Service...');
-
-  try {
-    
-    const res = await fetch(`${CONTENT_SERVICE_BASE_URL}/api/v1/movies/${movieId}`);
-
-    if (!res.ok) {
-      setStatus('error', `Content Service returned ${res.status}: ${res.statusText}`);
-      return;
-    }
-
-    const data = await res.json();
-    console.log('[Content Service] Response:', data);
-
-    // MovieResponse.hlsUrl is populated by the encoding pipeline via Kafka
-    const m3u8Url = data.hlsUrl || data.m3u8Url || data.streamUrl || data.url;
-
-    if (!m3u8Url) {
-      setStatus('error',
-        `No HLS URL found. videoStatus=${data.videoStatus} — video may still be encoding. ` +
-        'Check browser console for full response.');
-      console.warn('[Content Service] Full response:', data);
-      return;
-    }
-
-    setStatus('loading', 'Initialising HLS player...');
-    loadAndPlay(m3u8Url);
-
-  } catch (err) {
-    setStatus('error', 'Could not reach Content Service: ' + err.message);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 // PLAY VIA STREAMING SERVICE  (recommended for private S3 buckets)
 // GET /api/v1/stream/{movieId}  →  generates a fresh AWS presigned URL
@@ -200,27 +155,6 @@ async function playByMovieIdPresigned() {
 // Paste any publicly accessible .m3u8 URL — no backend call needed.
 // ═══════════════════════════════════════════════════════════════
 
-function playDirectUrl() {
-  const url = document.getElementById('m3u8UrlInput').value.trim();
-
-  if (!url) {
-    setStatus('error', 'Please enter an M3U8 URL');
-    return;
-  }
-  if (!url.includes('.m3u8')) {
-    setStatus('error', 'URL does not look like an M3U8 playlist');
-    return;
-  }
-
-  setStatus('loading', 'Initialising HLS player...');
-  loadAndPlay(url);
-}
-
-
 document.getElementById('movieIdInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') playByMovieId();
-});
-
-document.getElementById('m3u8UrlInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') playDirectUrl();
+  if (e.key === 'Enter') playByMovieIdPresigned();
 });
